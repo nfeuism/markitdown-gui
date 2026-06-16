@@ -42,6 +42,13 @@ def test_build_datas_keeps_base_files_and_warns_for_missing_optional_packages():
     warnings = []
 
     def fake_collect(package: str) -> list[tuple[str, str]]:
+        if package == "docling_parse":
+            return [
+                (
+                    "docling_parse/pdf_resources/fonts",
+                    "docling_parse/pdf_resources/fonts",
+                )
+            ]
         if package == "magika":
             return [("magika/model.onnx", "magika")]
         if package == "pypdfium2":
@@ -53,6 +60,10 @@ def test_build_datas_keeps_base_files_and_warns_for_missing_optional_packages():
     datas = build_config.build_datas(fake_collect, warn=warnings.append)
 
     assert ("LICENSE", ".") in datas
+    assert (
+        "docling_parse/pdf_resources/fonts",
+        "docling_parse/pdf_resources/fonts",
+    ) in datas
     assert ("magika/model.onnx", "magika") in datas
     assert ("pdfium.dll", "pypdfium2_raw") in datas
     assert warnings == [

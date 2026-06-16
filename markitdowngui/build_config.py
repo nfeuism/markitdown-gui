@@ -51,6 +51,7 @@ BASE_DATAS = (
     ("LICENSE", "."),
 )
 OPTIONAL_DATA_PACKAGES = (
+    "docling_parse",
     "magika",
     "pypdfium2",
     "pypdfium2_raw",
