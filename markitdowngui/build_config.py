@@ -45,7 +45,10 @@ OPTIONAL_HIDDENIMPORTS = (
     "pytesseract",
 )
 BASE_DATAS = (
+    ("markitdowngui/qml", "markitdowngui/qml"),
+    ("markitdowngui/resources/icons", "markitdowngui/resources/icons"),
     ("markitdowngui/resources/markitdown-gui.ico", "markitdowngui/resources"),
+    ("markitdowngui/resources/markitdown-gui.png", "markitdowngui/resources"),
     ("markitdowngui/resources/moon.svg", "markitdowngui/resources"),
     ("markitdowngui/resources/sun.svg", "markitdowngui/resources"),
     ("LICENSE", "."),

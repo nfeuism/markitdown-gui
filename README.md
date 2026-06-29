@@ -3,8 +3,8 @@
 
 # MarkItDown GUI Wrapper
 
-A desktop GUI for `MarkItDown`, built with `PySide6` and `QFluentWidgets`.
-It focuses on fast multi-file conversion to Markdown with a modern Fluent-style interface.
+A desktop GUI for `MarkItDown`, built with `PySide6` and official Qt Quick Controls/QML.
+It focuses on fast multi-file conversion to Markdown with a modern, native-styled desktop interface.
 
 ![Current UI screenshot](image.png)
 
@@ -18,8 +18,8 @@ It focuses on fast multi-file conversion to Markdown with a modern Fluent-style 
 - Save modes: export as one combined file or separate files.
 - Quick actions: copy Markdown, save output, back to queue, start over.
 - Optional OCR for scanned PDFs and image files, with selectable `Azure/Tesseract OCR` and `GLM-OCR` providers.
-- Settings for output folder, batch size, header style, table style, OCR, and theme mode (light/dark/system).
-- Built-in shortcuts dialog, update check action, and about dialog.
+- Settings for output folder, save mode, source-folder saves, batch size, OCR, and theme mode (light/dark/system).
+- Help view with project links, OCR references, conversion references, and keyboard shortcuts.
 
 ## Installation
 
@@ -171,10 +171,9 @@ That build intentionally excludes the GLM-OCR self-hosted runtime stack; local h
 
 ## License
 
-Licensed under **GPLv3 for non-commercial use**.
+Licensed under the **MIT License**.
 
-Commercial use requires a separate commercial license.
-This follows the non-commercial licensing requirements of `PySide6-Fluent-Widgets` (`qfluentwidgets`).
+The app uses `PySide6`/Qt under Qt's LGPL/commercial licensing model. The previous `PySide6-Fluent-Widgets` dependency has been removed.
 
 ## Contributing
 
@@ -198,5 +197,5 @@ uv run pytest -q
 
 - MarkItDown ([MIT License](https://opensource.org/licenses/MIT))
 - PySide6 ([LGPLv3 License](https://www.gnu.org/licenses/lgpl-3.0.html))
-- PySide6-Fluent-Widgets / QFluentWidgets ([Project site](https://qfluentwidgets.com))
+- Qt Quick Controls ([Qt documentation](https://doc.qt.io/qt-6/qtquickcontrols-index.html))
 

@@ -1,21 +1,22 @@
 # MarkItDown GUI 封装
 
-这是一个基于 `PySide6` 和 `QFluentWidgets` 的 `MarkItDown` 桌面 GUI。
-目标是用更直观的界面完成多文件到 Markdown 的转换。
+这是一个基于 `PySide6` 和官方 Qt Quick Controls/QML 的 `MarkItDown` 桌面 GUI。
+目标是用现代、接近原生体验的桌面界面完成多文件到 Markdown 的转换。
 
 ![当前界面截图](image.png)
 
 ## 功能
 
 - 基于队列的文件流程，支持拖放添加文件。
+- 粘贴网页 URL，并通过托管的 Defuddle API 转换文章内容。
 - 批量转换，支持开始、暂停/恢复、取消和进度反馈。
 - 结果页支持按文件查看转换结果。
 - 预览模式支持渲染视图和原始 Markdown 视图。
 - 保存模式支持合并为单文件或分别保存多个文件。
 - 常用操作：复制 Markdown、保存输出、返回队列、重新开始。
 - 可选 OCR，支持扫描版 PDF 和图片文件，可在 `Azure/Tesseract OCR` 与 `GLM-OCR` 两种提供方之间切换。
-- 设置项包括输出目录、批处理大小、标题样式、表格样式、OCR 和主题模式（浅色/深色/跟随系统）。
-- 内置快捷键面板、检查更新入口和关于对话框。
+- 设置项包括输出目录、保存模式、保存到源文件夹、批处理大小、OCR 和主题模式（浅色/深色/跟随系统）。
+- 帮助页包含项目链接、OCR 参考、转换参考和键盘快捷键。
 
 ## 安装
 
@@ -141,10 +142,9 @@ pyinstaller MarkItDown.spec --clean --noconfirm
 
 ## 许可证
 
-本项目采用 **GPLv3（仅限非商业用途）**。
+本项目采用 **MIT License**。
 
-商业用途需要单独的商业授权。
-该策略与 `PySide6-Fluent-Widgets`（`qfluentwidgets`）的非商业许可要求保持一致。
+应用使用 `PySide6`/Qt，需遵守 Qt 的 LGPL/商业许可模式。此前的 `PySide6-Fluent-Widgets` 依赖已移除。
 
 ## 贡献
 
@@ -168,4 +168,4 @@ uv run pytest -q
 
 - MarkItDown ([MIT 许可证](https://opensource.org/licenses/MIT))
 - PySide6 ([LGPLv3 许可证](https://www.gnu.org/licenses/lgpl-3.0.html))
-- PySide6-Fluent-Widgets / QFluentWidgets ([项目主页](https://qfluentwidgets.com))
+- Qt Quick Controls ([Qt 文档](https://doc.qt.io/qt-6/qtquickcontrols-index.html))
