@@ -62,9 +62,60 @@ ApplicationWindow {
             saveSeparateDialog.open()
     }
 
-    function showLegacyOcrSettings() {
+    function showAzureTesseractSettings() {
         return app.ocrEnabled
-            && (app.ocrProvider !== "glmocr" || app.ocrFallbackEnabled)
+            && (app.ocrProvider === "azure_tesseract" || app.ocrFallbackProvider === "azure_tesseract")
+    }
+
+    function showHttpOcrSettings() {
+        return app.ocrEnabled
+            && (app.ocrProvider === "http" || app.ocrFallbackProvider === "http")
+    }
+
+    function ocrProviderIndex(provider) {
+        if (provider === "glmocr")
+            return 1
+        if (provider === "http")
+            return 2
+        return 0
+    }
+
+    function ocrProviderFromIndex(index) {
+        if (index === 1)
+            return "glmocr"
+        if (index === 2)
+            return "http"
+        return "azure_tesseract"
+    }
+
+    function ocrFallbackIndex(provider) {
+        if (app.ocrProvider === "http" && provider === "http")
+            return 0
+        if (provider === "azure_tesseract")
+            return 1
+        if (app.ocrProvider !== "http" && provider === "http")
+            return 2
+        return 0
+    }
+
+    function ocrFallbackFromIndex(index) {
+        if (index === 1)
+            return "azure_tesseract"
+        if (app.ocrProvider !== "http" && index === 2)
+            return "http"
+        return "none"
+    }
+
+    function ocrFallbackLabels() {
+        if (app.ocrProvider === "http")
+            return ["None", "Azure + Tesseract"]
+        return ["None", "Azure + Tesseract", "HTTP OCR"]
+    }
+
+    function ocrFallbackDetail() {
+        if (app.ocrProvider === "http")
+            return "Optional provider used if HTTP OCR fails or returns no text."
+        return "Optional provider used if GLM-OCR fails or returns no text."
     }
 
     function focusedTextControl() {
@@ -125,6 +176,26 @@ ApplicationWindow {
         onAccepted: app.setOutputFolderFromUrl(selectedFolder)
     }
 
+    FileDialog {
+        id: exportSettingsProfileDialog
+        title: "Export settings profile"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        currentFolder: app.outputFolderUrl
+        selectedFile: app.outputFolderUrl ? app.outputFolderUrl + "/markitdown-settings-profile.json" : ""
+        nameFilters: ["JSON files (*.json)"]
+        onAccepted: app.exportSettingsProfile(selectedFile)
+    }
+
+    FileDialog {
+        id: importSettingsProfileDialog
+        title: "Import settings profile"
+        fileMode: FileDialog.OpenFile
+        currentFolder: app.outputFolderUrl
+        nameFilters: ["JSON files (*.json)", "All files (*)"]
+        onAccepted: app.importSettingsProfile(selectedFile)
+    }
+
     Connections {
         target: app
         function onToastRequested(kind, message) {
@@ -183,21 +254,43 @@ ApplicationWindow {
                 }
 
                 Label {
-                    text: "Open GitHub Releases to download it."
+                    text: app.updateInstallRunning
+                        ? app.updateInstallStatus
+                        : app.canInstallPreferredUpdate
+                        ? "Install can run after download and will restart the app."
+                        : "Use Releases for packaged builds, or the source updater for Git checkouts."
                     color: colors.muted
                     font.pixelSize: 12
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
+
+                ProgressBar {
+                    visible: app.updateInstallRunning
+                    from: 0
+                    to: 100
+                    value: app.updateInstallProgress
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 4
+                }
             }
 
             AppButton {
-                text: "Releases"
+                text: app.updateInstallRunning
+                    ? "Installing"
+                    : app.canInstallPreferredUpdate
+                    ? "Install"
+                    : app.preferredReleaseAsset.url ? app.preferredReleaseAsset.installLabel || "Download" : "Releases"
                 primary: true
-                iconName: "external-link"
+                iconName: app.updateInstallRunning || app.canInstallPreferredUpdate ? "rotate-ccw" : "external-link"
                 accentColor: colors.action
                 primaryTextColor: colors.onAction
-                onClicked: app.openReleases()
+                enabled: !app.updateInstallRunning
+                onClicked: app.canInstallPreferredUpdate
+                    ? app.installPreferredUpdate()
+                    : app.preferredReleaseAsset.url
+                    ? app.openReleaseAsset(app.preferredReleaseAsset.url)
+                    : app.openReleases()
             }
 
             AppButton {
@@ -259,6 +352,13 @@ ApplicationWindow {
         context: Qt.ApplicationShortcut
         enabled: root.pageIndex === 0 && app.hasResults && !root.focusedTextControl()
         onActivated: app.copySelectedMarkdown()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+R"
+        context: Qt.ApplicationShortcut
+        enabled: root.pageIndex === 0 && app.hasFailedResults && !app.converting
+        onActivated: app.retryFailedResults()
     }
 
     Shortcut {
@@ -1001,7 +1101,7 @@ ApplicationWindow {
 
                         ThemeToggleRow {
                             title: "OCR"
-                            detail: "Provider: " + (app.ocrProvider === "glmocr" ? "GLM-OCR" : "Azure/Tesseract") + ". Use for scanned or image-heavy inputs."
+                            detail: "Provider: " + (app.ocrProvider === "glmocr" ? "GLM-OCR" : "Azure + Tesseract") + ". Use for scanned or image-heavy inputs."
                             enabled: !app.converting
                             checked: app.ocrEnabled
                             textColor: colors.text
@@ -1221,6 +1321,16 @@ ApplicationWindow {
                             app.clearResults()
                             app.clearQueue()
                         }
+                    }
+
+                    AppButton {
+                        visible: app.hasFailedResults
+                        text: "Retry"
+                        subtle: true
+                        iconName: "rotate-ccw"
+                        accentColor: colors.danger
+                        textColor: colors.danger
+                        onClicked: app.retryFailedResults()
                     }
 
                     Item {
@@ -1595,6 +1705,30 @@ ApplicationWindow {
                                             border.color: colors.border
                                         }
                                     }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+
+                                        Label {
+                                            text: app.failedResultCount === 1
+                                                ? "Retry the failed input after adjusting settings."
+                                                : "Retry " + app.failedResultCount + " failed inputs after adjusting settings."
+                                            color: colors.muted
+                                            font.pixelSize: 12
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+
+                                        AppButton {
+                                            text: "Retry failed"
+                                            iconName: "rotate-ccw"
+                                            accentColor: colors.danger
+                                            surfaceColor: colors.surfaceAlt
+                                            borderColor: colors.danger
+                                            textColor: colors.danger
+                                            onClicked: app.retryFailedResults()
+                                        }
+                                    }
                                 }
                             }
 
@@ -1862,16 +1996,177 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "Provider"
-                    detail: "GLM-OCR is best for image-heavy pages; Azure/Tesseract keeps the legacy path."
+                    label: "OCR presets"
+                    detail: "Apply common provider defaults, then run Test connection."
+                    Layout.fillWidth: true
+
+                    ColumnLayout {
+                        spacing: 8
+                        Layout.fillWidth: true
+
+                        Repeater {
+                            model: app.ocrPresetActions
+
+                            delegate: RowLayout {
+                                spacing: 10
+                                Layout.fillWidth: true
+
+                                ColumnLayout {
+                                    spacing: 2
+                                    Layout.fillWidth: true
+
+                                    Label {
+                                        text: modelData.label
+                                        color: colors.text
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Label {
+                                        text: modelData.detail
+                                        color: colors.muted
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                AppButton {
+                                    text: "Apply"
+                                    iconName: "file-check"
+                                    accentColor: colors.action
+                                    surfaceColor: colors.surfaceAlt
+                                    borderColor: colors.border
+                                    textColor: colors.text
+                                    onClicked: app.applyOcrPreset(modelData.id)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                FieldGroup {
+                    label: "Primary provider"
+                    detail: "Choose the OCR engine used first. A fallback can be configured for model failures."
                     visible: app.ocrEnabled
                     Layout.fillWidth: true
 
                     ThemeComboBox {
-                        model: ["Azure/Tesseract", "GLM-OCR"]
-                        currentIndex: app.ocrProvider === "glmocr" ? 1 : 0
-                        onActivated: index => app.setOcrProvider(index === 1 ? "glmocr" : "legacy")
+                        model: ["Azure + Tesseract", "GLM-OCR", "HTTP OCR"]
+                        currentIndex: root.ocrProviderIndex(app.ocrProvider)
+                        onActivated: index => app.setOcrProvider(root.ocrProviderFromIndex(index))
                         Layout.fillWidth: true
+                    }
+                }
+
+                FieldGroup {
+                    label: "Fallback provider"
+                    detail: root.ocrFallbackDetail()
+                    visible: app.ocrEnabled && app.ocrProvider !== "azure_tesseract"
+                    Layout.fillWidth: true
+
+                    ThemeComboBox {
+                        model: root.ocrFallbackLabels()
+                        currentIndex: root.ocrFallbackIndex(app.ocrFallbackProvider)
+                        onActivated: index => app.setOcrFallbackProvider(root.ocrFallbackFromIndex(index))
+                        Layout.fillWidth: true
+                    }
+                }
+
+                FieldGroup {
+                    label: "Provider capabilities"
+                    visible: app.ocrEnabled
+                    Layout.fillWidth: true
+
+                    ColumnLayout {
+                        spacing: 5
+                        Layout.fillWidth: true
+
+                        Repeater {
+                            model: app.ocrProviderOptions
+
+                            delegate: RowLayout {
+                                spacing: 8
+                                Layout.fillWidth: true
+                                opacity: modelData.id === app.ocrProvider ? 1.0 : 0.68
+
+                                Label {
+                                    text: modelData.label
+                                    color: colors.text
+                                    font.pixelSize: 12
+                                    font.weight: modelData.id === app.ocrProvider ? Font.DemiBold : Font.Normal
+                                    Layout.preferredWidth: 118
+                                    elide: Text.ElideRight
+                                }
+
+                                Label {
+                                    text: modelData.capabilities.join(" / ")
+                                    color: colors.muted
+                                    font.pixelSize: 11
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+                    }
+                }
+
+                FieldGroup {
+                    label: "Setup actions"
+                    detail: "Open provider docs or copy setup snippets for the selected provider."
+                    visible: app.ocrEnabled
+                    Layout.fillWidth: true
+
+                    ColumnLayout {
+                        spacing: 8
+                        Layout.fillWidth: true
+
+                        Repeater {
+                            model: app.ocrSetupActions
+
+                            delegate: RowLayout {
+                                spacing: 10
+                                Layout.fillWidth: true
+
+                                ColumnLayout {
+                                    spacing: 2
+                                    Layout.fillWidth: true
+
+                                    Label {
+                                        text: modelData.label
+                                        color: colors.text
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Label {
+                                        text: modelData.detail
+                                        color: colors.muted
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                AppButton {
+                                    text: modelData.action === "open" ? "Open" : "Copy"
+                                    iconName: modelData.action === "open" ? "external-link" : "copy"
+                                    accentColor: colors.action
+                                    surfaceColor: colors.surfaceAlt
+                                    borderColor: colors.border
+                                    textColor: colors.text
+                                    onClicked: app.runOcrSetupAction(
+                                        modelData.action,
+                                        modelData.value,
+                                        modelData.label
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1880,7 +2175,7 @@ ApplicationWindow {
                     detail: app.ocrProvider === "glmocr"
                         ? "Optional fallback endpoint. Uses AZURE_OCR_API_KEY or Azure identity at runtime."
                         : "Uses AZURE_OCR_API_KEY or Azure identity at runtime."
-                    visible: root.showLegacyOcrSettings()
+                    visible: root.showAzureTesseractSettings()
                     Layout.fillWidth: true
 
                     AppTextField {
@@ -1898,8 +2193,8 @@ ApplicationWindow {
 
                 FieldGroup {
                     label: app.ocrProvider === "glmocr" ? "Fallback Tesseract languages" : "Tesseract languages"
-                    detail: app.ocrProvider === "glmocr" ? "Optional local OCR languages used only if fallback runs." : ""
-                    visible: root.showLegacyOcrSettings()
+                    detail: app.ocrProvider === "glmocr" ? "Optional language codes used only if fallback runs." : ""
+                    visible: root.showAzureTesseractSettings()
                     Layout.fillWidth: true
 
                     AppTextField {
@@ -1917,8 +2212,8 @@ ApplicationWindow {
 
                 FieldGroup {
                     label: app.ocrProvider === "glmocr" ? "Fallback Tesseract executable" : "Tesseract executable"
-                    detail: app.ocrProvider === "glmocr" ? "Optional local executable used only if fallback runs." : ""
-                    visible: root.showLegacyOcrSettings()
+                    detail: app.ocrProvider === "glmocr" ? "Optional executable path used only if fallback runs." : ""
+                    visible: root.showAzureTesseractSettings()
                     Layout.fillWidth: true
 
                     AppTextField {
@@ -1931,6 +2226,40 @@ ApplicationWindow {
                         placeholderColor: colors.subtle
                         Layout.fillWidth: true
                         onEditingFinished: app.setTesseractPath(text)
+                    }
+                }
+
+                RowLayout {
+                    visible: app.ocrEnabled
+                    spacing: 10
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: "Check required provider settings before starting a batch."
+                        color: colors.muted
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    AppButton {
+                        text: "Validate OCR"
+                        iconName: "file-check"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: app.validateOcrSetup()
+                    }
+
+                    AppButton {
+                        text: "Test connection"
+                        iconName: "server"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: app.testOcrConnection()
                     }
                 }
             }
@@ -1948,16 +2277,6 @@ ApplicationWindow {
                 borderOpacity: dark ? 0.90 : 0.72
                 visible: app.ocrEnabled && app.ocrProvider === "glmocr"
                 Layout.fillWidth: true
-
-                ThemeToggleRow {
-                    title: "Fallback to Azure/Tesseract"
-                    detail: "Use the legacy OCR path if GLM-OCR fails."
-                    checked: app.ocrFallbackEnabled
-                    textColor: colors.text
-                    mutedTextColor: colors.muted
-                    onToggled: checked => app.setOcrFallbackEnabled(checked)
-                    Layout.fillWidth: true
-                }
 
                 FieldGroup {
                     label: "Mode"
@@ -2050,6 +2369,142 @@ ApplicationWindow {
                 }
             }
 
+            SectionPanel {
+                title: "HTTP OCR"
+                subtitle: "Connect any local or self-hosted OCR server that accepts a multipart file upload."
+                surfaceColor: colors.surface
+                borderColor: colors.border
+                textColor: colors.text
+                mutedTextColor: colors.muted
+                panelPadding: 14
+                contentSpacing: 10
+                bodySpacing: 9
+                borderOpacity: dark ? 0.90 : 0.72
+                visible: root.showHttpOcrSettings()
+                Layout.fillWidth: true
+
+                FieldGroup {
+                    label: "Endpoint"
+                    detail: "POST endpoint. The app sends a `file` part plus optional `model`."
+                    Layout.fillWidth: true
+
+                    AppTextField {
+                        text: app.httpOcrEndpoint
+                        placeholderText: "http://127.0.0.1:8000/ocr"
+                        surfaceColor: colors.input
+                        borderColor: colors.border
+                        accentColor: colors.accent
+                        textColor: colors.text
+                        placeholderColor: colors.subtle
+                        Layout.fillWidth: true
+                        onEditingFinished: app.setHttpOcrEndpoint(text)
+                    }
+                }
+
+                RowLayout {
+                    spacing: 10
+                    Layout.fillWidth: true
+
+                    FieldGroup {
+                        label: "Model"
+                        detail: "Optional model field."
+                        Layout.fillWidth: true
+
+                        AppTextField {
+                            text: app.httpOcrModel
+                            placeholderText: "surya, doctr, paddleocr, ..."
+                            surfaceColor: colors.input
+                            borderColor: colors.border
+                            accentColor: colors.accent
+                            textColor: colors.text
+                            placeholderColor: colors.subtle
+                            Layout.fillWidth: true
+                            onEditingFinished: app.setHttpOcrModel(text)
+                        }
+                    }
+
+                    FieldGroup {
+                        label: "Timeout"
+                        detail: "Seconds."
+                        Layout.preferredWidth: 150
+                        Layout.fillWidth: false
+
+                        ThemeSpinBox {
+                            from: 1
+                            to: 3600
+                            value: app.httpOcrTimeoutSeconds
+                            textFromValue: function(value, locale) { return value.toString() }
+                            onValueModified: app.setHttpOcrTimeoutSeconds(value)
+                        }
+                    }
+                }
+
+                FieldGroup {
+                    label: "API key environment variable"
+                    detail: "Optional. If set, the value is sent as `Authorization: Bearer ...`."
+                    Layout.fillWidth: true
+
+                    AppTextField {
+                        text: app.httpOcrApiKeyEnv
+                        placeholderText: "OCR_HTTP_API_KEY"
+                        surfaceColor: colors.input
+                        borderColor: colors.border
+                        accentColor: colors.accent
+                        textColor: colors.text
+                        placeholderColor: colors.subtle
+                        Layout.fillWidth: true
+                        onEditingFinished: app.setHttpOcrApiKeyEnv(text)
+                    }
+                }
+            }
+
+            SectionPanel {
+                title: "Settings profile"
+                subtitle: "Move OCR, update, and conversion preferences without recent file paths."
+                surfaceColor: colors.surface
+                borderColor: colors.border
+                textColor: colors.text
+                mutedTextColor: colors.muted
+                panelPadding: 14
+                contentSpacing: 10
+                bodySpacing: 9
+                borderOpacity: dark ? 0.90 : 0.72
+                Layout.fillWidth: true
+
+                RowLayout {
+                    spacing: 10
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: "Profiles include provider endpoints and env var names, but exclude recent files, outputs, window state, and default output folders."
+                        color: colors.muted
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    AppButton {
+                        text: "Export"
+                        iconName: "save"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: exportSettingsProfileDialog.open()
+                    }
+
+                    AppButton {
+                        text: "Import"
+                        iconName: "upload"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: importSettingsProfileDialog.open()
+                    }
+                }
+            }
+
             Item {
                 height: 24
             }
@@ -2132,7 +2587,9 @@ ApplicationWindow {
                     Layout.fillWidth: true
 
                     Label {
-                        text: "Check whether a newer app release is available."
+                        text: app.availableReleaseAssets.length > 0
+                            ? "Packaged release assets are available for " + app.availableUpdateVersion + "."
+                            : "Check whether a newer packaged app release is available."
                         color: colors.muted
                         font.pixelSize: 12
                         wrapMode: Text.WordWrap
@@ -2148,6 +2605,137 @@ ApplicationWindow {
                         textColor: colors.text
                         onClicked: app.checkForUpdates()
                     }
+                }
+
+                Label {
+                    visible: !!app.availableReleaseNotes
+                    text: app.availableReleaseNotes
+                    color: colors.text
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 4
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+
+                GridLayout {
+                    visible: app.preferredReleaseAssetPreflightItems.length > 0
+                    columns: helpPage.width < 760 ? 1 : 2
+                    columnSpacing: 16
+                    rowSpacing: 8
+                    Layout.fillWidth: true
+
+                    Repeater {
+                        model: app.preferredReleaseAssetPreflightItems
+
+                        delegate: RowLayout {
+                            spacing: 10
+                            Layout.fillWidth: true
+
+                            Label {
+                                text: modelData.label
+                                color: colors.text
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                Layout.preferredWidth: 104
+                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                text: modelData.value
+                                color: colors.muted
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+                }
+
+                GridLayout {
+                    visible: app.availableReleaseAssets.length > 0
+                    columns: 2
+                    columnSpacing: 10
+                    rowSpacing: 10
+                    Layout.fillWidth: true
+
+                    Repeater {
+                        model: app.availableReleaseAssets
+
+                        delegate: AppButton {
+                            text: modelData.name
+                            iconName: "external-link"
+                            accentColor: colors.action
+                            surfaceColor: colors.surfaceAlt
+                            borderColor: colors.border
+                            textColor: colors.text
+                            Layout.fillWidth: true
+                            onClicked: app.openReleaseAsset(modelData.url)
+                        }
+                    }
+                }
+
+                RowLayout {
+                    spacing: 10
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: app.sourceUpdateRunning
+                            ? app.sourceUpdateStatus
+                            : app.sourceUpdateCommand
+                            ? "For source checkouts, pull the checkout and reinstall the app in place."
+                            : "Source updater is available only when the app runs from a Git checkout."
+                        color: colors.muted
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    AppButton {
+                        text: app.sourceUpdateRunning ? "Updating" : "Run source update"
+                        iconName: "rotate-ccw"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        enabled: app.canRunSourceUpdate && !app.converting
+                        onClicked: app.runSourceUpdate()
+                    }
+
+                    AppButton {
+                        text: "Restart app"
+                        iconName: "rotate-ccw"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        visible: app.sourceUpdateNeedsRestart
+                        enabled: app.sourceUpdateNeedsRestart
+                            && !app.sourceUpdateRunning
+                            && !app.updateInstallRunning
+                            && !app.converting
+                        onClicked: app.restartApp()
+                    }
+
+                    AppButton {
+                        text: "Copy command"
+                        iconName: "copy"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        enabled: !!app.sourceUpdateCommand && !app.sourceUpdateRunning
+                        onClicked: app.copySourceUpdateCommand()
+                    }
+                }
+
+                ProgressBar {
+                    visible: app.sourceUpdateRunning
+                    from: 0
+                    to: 100
+                    value: app.sourceUpdateProgress
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 4
                 }
 
                 GridLayout {
@@ -2181,6 +2769,148 @@ ApplicationWindow {
             }
 
             UtilitySectionPanel {
+                title: "Diagnostics"
+                subtitle: "Useful when an update, OCR provider, or conversion fails."
+
+                GridLayout {
+                    columns: helpPage.width < 840 ? 1 : 2
+                    columnSpacing: 14
+                    rowSpacing: 10
+                    Layout.fillWidth: true
+
+                    Repeater {
+                        model: app.diagnosticReadinessItems
+
+                        delegate: RowLayout {
+                            spacing: 10
+                            Layout.fillWidth: true
+
+                            Label {
+                                text: modelData.label
+                                color: colors.text
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                Layout.preferredWidth: 112
+                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                text: modelData.status
+                                color: modelData.severity === "ok"
+                                    ? colors.success
+                                    : modelData.severity === "warn"
+                                    ? colors.warning
+                                    : colors.muted
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                Layout.preferredWidth: 112
+                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                text: modelData.detail
+                                color: colors.muted
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    spacing: 10
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: "Open logs, copy diagnostics, or export a redacted support bundle."
+                        color: colors.muted
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    AppButton {
+                        text: "Open logs"
+                        iconName: "external-link"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: app.openLogFolder()
+                    }
+
+                    AppButton {
+                        text: "Copy diagnostics"
+                        iconName: "copy"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: app.copyDiagnostics()
+                    }
+
+                    AppButton {
+                        text: "Export bundle"
+                        iconName: "save"
+                        accentColor: colors.action
+                        surfaceColor: colors.surfaceAlt
+                        borderColor: colors.border
+                        textColor: colors.text
+                        onClicked: app.exportSupportBundle()
+                    }
+                }
+
+                ColumnLayout {
+                    visible: app.hasLastPackagedUpdateResult
+                    spacing: 8
+                    Layout.fillWidth: true
+
+                    RowLayout {
+                        spacing: 10
+                        Layout.fillWidth: true
+
+                        Label {
+                            text: "Last packaged update"
+                            color: colors.text
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            Layout.fillWidth: true
+                        }
+
+                        AppButton {
+                            text: "Open backup folder"
+                            iconName: "external-link"
+                            accentColor: colors.action
+                            surfaceColor: colors.surfaceAlt
+                            borderColor: colors.border
+                            textColor: colors.text
+                            visible: app.hasLastPackagedUpdateBackupPath
+                            onClicked: app.openLastPackagedUpdateBackup()
+                        }
+
+                        AppButton {
+                            text: "Clear"
+                            iconName: "x"
+                            accentColor: colors.action
+                            surfaceColor: colors.surfaceAlt
+                            borderColor: colors.border
+                            textColor: colors.text
+                            onClicked: app.clearLastPackagedUpdateResult()
+                        }
+                    }
+
+                    Label {
+                        text: app.lastPackagedUpdateResult
+                        color: colors.muted
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
+            UtilitySectionPanel {
                 title: "Shortcuts"
                 subtitle: "Keyboard actions for the main workspace."
 
@@ -2197,6 +2927,7 @@ ApplicationWindow {
                             { key: "Ctrl+P", action: "Pause or resume" },
                             { key: "Ctrl+S", action: "Save Markdown" },
                             { key: "Ctrl+C", action: "Copy selected result" },
+                            { key: "Ctrl+R", action: "Retry failed conversions" },
                             { key: "Ctrl+L", action: "Clear queue" },
                             { key: "Ctrl+K", action: "Open Help" },
                             { key: "Esc", action: "Cancel conversion" }

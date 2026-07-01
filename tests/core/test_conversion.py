@@ -471,7 +471,7 @@ def test_convert_pdf_with_preserved_images_and_local_ocr_uses_plugin(
     assert captured["ocr_languages"] == "eng+deu"
 
 
-def test_convert_pdf_with_preserved_images_and_glmocr_uses_plugin(
+def test_convert_pdf_with_preserved_images_and_glmocr_preserves_assets_then_uses_provider(
     monkeypatch,
     conversion,
     tmp_path,
@@ -486,8 +486,9 @@ def test_convert_pdf_with_preserved_images_and_glmocr_uses_plugin(
     monkeypatch.setattr(
         conversion,
         "_convert_pdf_with_glmocr",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("GLM-OCR routing should not run")
+        lambda *_args, **_kwargs: conversion.ConversionOutcome(
+            markdown="glm pdf text",
+            backend=conversion.BACKEND_GLMOCR,
         ),
     )
 
@@ -503,7 +504,8 @@ def test_convert_pdf_with_preserved_images_and_glmocr_uses_plugin(
     )
 
     assert outcome.backend == conversion.BACKEND_PDF_IMAGES
-    assert captured["ocr_enabled"] is True
+    assert outcome.markdown == "ocr pdf text\n\nglm pdf text"
+    assert captured["ocr_enabled"] is False
     assert captured["tesseract_path"] == "/usr/bin/tesseract"
 
 
@@ -705,11 +707,53 @@ def test_convert_pdf_falls_back_to_azure_tesseract_ocr_after_glmocr_failure(
             ocr_enabled=True,
             ocr_provider=conversion.OCR_PROVIDER_GLMOCR,
             ocr_fallback_enabled=True,
+            ocr_fallback_provider=conversion.OCR_PROVIDER_AZURE_TESSERACT,
         ),
     )
 
     assert outcome.markdown == "Azure/Tesseract PDF text"
     assert outcome.backend == conversion.BACKEND_NATIVE
+
+
+def test_convert_pdf_skips_fallback_when_fallback_provider_is_none(
+    monkeypatch,
+    conversion,
+):
+    class FakeGlmOcr:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def parse(self, _file_path):
+            raise RuntimeError("glm unavailable")
+
+    _install_fake_glmocr(monkeypatch, FakeGlmOcr)
+    monkeypatch.setenv("ZHIPU_API_KEY", "secret")
+    monkeypatch.setattr(
+        conversion,
+        "_convert_pdf_with_azure_tesseract_ocr",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Fallback OCR should not run")
+        ),
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        conversion.convert_file(
+            "scan.pdf",
+            conversion.ConversionOptions(
+                ocr_enabled=True,
+                ocr_provider=conversion.OCR_PROVIDER_GLMOCR,
+                ocr_fallback_provider=conversion.OCR_PROVIDER_NONE,
+            ),
+        )
+
+    assert "GLM-OCR failed for the PDF" in str(exc_info.value)
+    assert "glm unavailable" in str(exc_info.value)
 
 
 def test_convert_pdf_surfaces_glmocr_failure_without_fallback(monkeypatch, conversion):
@@ -981,6 +1025,122 @@ def test_convert_with_glmocr_ollama_joins_page_results(monkeypatch, conversion):
     assert responses == []
 
 
+def test_convert_image_uses_http_ocr_provider(monkeypatch, conversion, tmp_path):
+    captured = {}
+    image_path = tmp_path / "scan.png"
+    image_path.write_bytes(b"image-bytes")
+
+    class FakeResponse:
+        ok = True
+        status_code = 200
+        text = ""
+        headers = {"content-type": "application/json"}
+
+        def json(self):
+            return {"markdown": "http image text"}
+
+    def fake_post(url, data, files, headers, timeout):
+        file_name, file_obj, content_type = files["file"]
+        captured["url"] = url
+        captured["data"] = data
+        captured["file_name"] = file_name
+        captured["file_bytes"] = file_obj.read()
+        captured["content_type"] = content_type
+        captured["headers"] = headers
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setenv("OCR_HTTP_API_KEY", "secret")
+    monkeypatch.setattr(conversion.requests, "post", fake_post)
+
+    outcome = conversion.convert_file_with_details(
+        str(image_path),
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_HTTP,
+            http_ocr_endpoint=" http://localhost:8000/ocr ",
+            http_ocr_model=" surya ",
+            http_ocr_timeout_seconds=45,
+        ),
+    )
+
+    assert outcome.markdown == "http image text"
+    assert outcome.backend == conversion.BACKEND_HTTP_OCR
+    assert captured == {
+        "url": "http://localhost:8000/ocr",
+        "data": {"model": "surya"},
+        "file_name": "scan.png",
+        "file_bytes": b"image-bytes",
+        "content_type": "image/png",
+        "headers": {"Authorization": "Bearer secret"},
+        "timeout": 45,
+    }
+
+
+def test_http_ocr_extracts_nested_response_text(conversion):
+    response = types.SimpleNamespace(
+        headers={"content-type": "application/json; charset=utf-8"},
+        json=lambda: {"result": {"content": "nested text"}},
+    )
+
+    assert conversion._extract_http_ocr_response_text(response) == "nested text"
+
+
+def test_http_ocr_skips_blank_fields_before_later_text(conversion):
+    response = types.SimpleNamespace(
+        headers={"content-type": "application/json"},
+        json=lambda: {"markdown": "  ", "text": "recognized text"},
+    )
+
+    assert conversion._extract_http_ocr_response_text(response) == "recognized text"
+
+
+def test_http_ocr_extracts_nested_list_response_text(conversion):
+    response = types.SimpleNamespace(
+        headers={"content-type": "application/json"},
+        json=lambda: {"result": [{"text": "page one"}, {"text": "page two"}]},
+    )
+
+    assert (
+        conversion._extract_http_ocr_response_text(response)
+        == "page one\n\npage two"
+    )
+
+
+def test_convert_pdf_falls_back_from_http_to_azure_tesseract(
+    monkeypatch,
+    conversion,
+):
+    monkeypatch.setattr(
+        conversion,
+        "_convert_with_http_ocr",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("http server down")
+        ),
+    )
+    monkeypatch.setattr(
+        conversion,
+        "_convert_pdf_with_azure_tesseract_ocr",
+        lambda *_args, **_kwargs: conversion.ConversionOutcome(
+            markdown="fallback text",
+            backend=conversion.BACKEND_AZURE,
+        ),
+    )
+
+    outcome = conversion.convert_file_with_details(
+        "scan.pdf",
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_HTTP,
+            ocr_fallback_provider=conversion.OCR_PROVIDER_AZURE_TESSERACT,
+            http_ocr_endpoint="http://localhost:8000/ocr",
+        ),
+    )
+
+    assert outcome.markdown == "fallback text"
+    assert outcome.backend == conversion.BACKEND_AZURE
+
+
 def test_convert_pdf_surfaces_azure_failure_when_local_ocr_is_unavailable(
     monkeypatch,
     conversion,
@@ -1172,6 +1332,200 @@ def test_test_azure_ocr_connection_requires_api_key(monkeypatch, conversion):
         )
 
     assert "Set AZURE_OCR_API_KEY" in str(exc_info.value)
+
+
+def test_test_http_ocr_connection_uses_options_request(monkeypatch, conversion):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 405
+
+    def fake_options(url, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(conversion.requests, "options", fake_options)
+
+    message = conversion.test_http_ocr_connection(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_HTTP,
+            http_ocr_endpoint="http://localhost:8000/ocr",
+            http_ocr_timeout_seconds=45,
+        )
+    )
+
+    assert message == "HTTP OCR endpoint is reachable."
+    assert captured == {"url": "http://localhost:8000/ocr", "timeout": 10}
+
+
+def test_test_http_ocr_connection_reports_missing_route(monkeypatch, conversion):
+    class FakeResponse:
+        status_code = 404
+
+    monkeypatch.setattr(
+        conversion.requests,
+        "options",
+        lambda _url, timeout: FakeResponse(),
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        conversion.test_http_ocr_connection(
+            conversion.ConversionOptions(
+                ocr_enabled=True,
+                ocr_provider=conversion.OCR_PROVIDER_HTTP,
+                http_ocr_endpoint="http://localhost:8000/missing",
+            )
+        )
+
+    assert "responded with 404" in str(exc_info.value)
+
+
+def test_test_glmocr_ollama_connection_checks_model(monkeypatch, conversion):
+    captured = {}
+
+    class FakeResponse:
+        ok = True
+        text = ""
+
+        def json(self):
+            return {"models": [{"name": "glm-ocr:latest"}]}
+
+    def fake_get(url, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(conversion.requests, "get", fake_get)
+
+    message = conversion.test_glmocr_ollama_connection(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_GLMOCR,
+            glmocr_mode=conversion.GLMOCR_MODE_OLLAMA,
+            glmocr_ollama_host="localhost",
+            glmocr_ollama_port=11434,
+            glmocr_ollama_model="glm-ocr:latest",
+        )
+    )
+
+    assert message == "GLM-OCR Ollama is reachable and `glm-ocr:latest` is installed."
+    assert captured == {"url": "http://localhost:11434/api/tags", "timeout": 10}
+
+
+def test_test_glmocr_ollama_connection_reports_missing_model(monkeypatch, conversion):
+    class FakeResponse:
+        ok = True
+        text = ""
+
+        def json(self):
+            return {"models": [{"name": "other-model"}]}
+
+    monkeypatch.setattr(conversion.requests, "get", lambda _url, timeout: FakeResponse())
+
+    with pytest.raises(RuntimeError) as exc_info:
+        conversion.test_glmocr_ollama_connection(
+            conversion.ConversionOptions(
+                ocr_enabled=True,
+                ocr_provider=conversion.OCR_PROVIDER_GLMOCR,
+                glmocr_mode=conversion.GLMOCR_MODE_OLLAMA,
+                glmocr_ollama_model="glm-ocr:latest",
+            )
+        )
+
+    assert "model `glm-ocr:latest` is not installed" in str(exc_info.value)
+
+
+def test_validate_ocr_setup_reports_disabled_ocr(conversion):
+    result = conversion.validate_ocr_setup(conversion.ConversionOptions())
+
+    assert result.ok is False
+    assert result.message == "OCR is disabled."
+
+
+def test_validate_ocr_setup_accepts_azure_endpoint_without_tesseract(
+    monkeypatch,
+    conversion,
+):
+    monkeypatch.setattr(conversion.shutil, "which", lambda _name: None)
+
+    result = conversion.validate_ocr_setup(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_AZURE_TESSERACT,
+            docintel_endpoint="https://example.cognitiveservices.azure.com/",
+            ocr_fallback_enabled=False,
+        )
+    )
+
+    assert result.ok is True
+    assert result.checked_providers == (conversion.OCR_PROVIDER_AZURE_TESSERACT,)
+
+
+def test_validate_ocr_setup_requires_azure_endpoint_or_tesseract(
+    monkeypatch,
+    conversion,
+):
+    monkeypatch.setattr(conversion.shutil, "which", lambda _name: None)
+
+    result = conversion.validate_ocr_setup(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_AZURE_TESSERACT,
+            ocr_fallback_enabled=False,
+        )
+    )
+
+    assert result.ok is False
+    assert result.message == (
+        "Azure + Tesseract needs an Azure endpoint or a usable Tesseract executable."
+    )
+
+
+def test_validate_ocr_setup_requires_http_endpoint(conversion):
+    result = conversion.validate_ocr_setup(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_HTTP,
+            ocr_fallback_enabled=False,
+        )
+    )
+
+    assert result.ok is False
+    assert result.message == "HTTP OCR requires an endpoint URL."
+
+
+def test_validate_ocr_setup_requires_glmocr_maas_api_key(monkeypatch, conversion):
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.delenv("GLMOCR_API_KEY", raising=False)
+
+    result = conversion.validate_ocr_setup(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_GLMOCR,
+            glmocr_mode=conversion.GLMOCR_MODE_MAAS,
+            ocr_fallback_enabled=False,
+        )
+    )
+
+    assert result.ok is False
+    assert result.message == "GLM-OCR Official API requires ZHIPU_API_KEY or GLMOCR_API_KEY."
+
+
+def test_validate_ocr_setup_deduplicates_duplicate_fallback_provider(conversion):
+    result = conversion.validate_ocr_setup(
+        conversion.ConversionOptions(
+            ocr_enabled=True,
+            ocr_provider=conversion.OCR_PROVIDER_HTTP,
+            http_ocr_endpoint="http://localhost:8000/ocr",
+            ocr_fallback_enabled=True,
+            ocr_fallback_provider=conversion.OCR_PROVIDER_HTTP,
+        )
+    )
+
+    assert result.ok is True
+    assert result.checked_providers == (conversion.OCR_PROVIDER_HTTP,)
 
 
 def test_conversion_worker_tracks_failed_files_separately_from_result_text(

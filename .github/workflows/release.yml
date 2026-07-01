@@ -6,7 +6,7 @@ on:
       - 'v*'  # Runs when a tag like v1.0.0 is pushed
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -34,6 +34,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgl1 libegl1 libxkbcommon-x11-0
 
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        run: choco install innosetup --no-progress -y
+
       - name: Install dependencies
         run: uv sync --extra dev --locked
 
@@ -55,6 +59,10 @@ jobs:
           PY
         shell: bash
 
+      - name: Run tests
+        run: uv run pytest -q
+        shell: bash
+
       - name: Build executable
         run: uv run pyinstaller MarkItDown.spec --clean --noconfirm
         shell: bash
@@ -64,22 +72,96 @@ jobs:
           TAG_NAME="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG_NAME#v}"
           VERSION="${VERSION#.}"
-          ARTIFACT_NAME="MarkItDown-${{ runner.os }}-${VERSION}.zip"
           mkdir -p dist_output
-          cd dist
-          python -m zipfile -c "../dist_output/${ARTIFACT_NAME}" MarkItDown
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            APP_PATH="dist/MarkItDown.app"
+            if [ ! -d "$APP_PATH" ]; then
+              echo "Expected macOS app bundle at $APP_PATH" >&2
+              exit 1
+            fi
+            SIGN_IDENTITY="${MACOS_CODESIGN_IDENTITY:--}"
+            if [ "$SIGN_IDENTITY" = "-" ]; then
+              codesign --force --deep --timestamp=none --sign "$SIGN_IDENTITY" "$APP_PATH"
+            else
+              codesign --force --deep --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
+            fi
+            mkdir -p dmg_root
+            cp -R "$APP_PATH" dmg_root/
+            ln -s /Applications dmg_root/Applications
+            hdiutil create -volname "MarkItDown" -srcfolder dmg_root -ov -format UDZO "dist_output/MarkItDown-macOS-${VERSION}.dmg"
+          else
+            ARTIFACT_NAME="MarkItDown-${{ runner.os }}-${VERSION}.zip"
+            cd dist
+            python -m zipfile -c "../dist_output/${ARTIFACT_NAME}" MarkItDown
+          fi
+        shell: bash
+        env:
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        run: |
+          $tagName = $env:GITHUB_REF -replace '^refs/tags/', ''
+          $version = ($tagName -replace '^v', '') -replace '^\.', ''
+          $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+          $iscc = Join-Path $programFilesX86 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path -LiteralPath $iscc)) {
+            throw "Inno Setup compiler not found at $iscc"
+          }
+          $sourceDir = (Resolve-Path -LiteralPath 'dist\MarkItDown').Path
+          $outputDir = (Resolve-Path -LiteralPath 'dist_output').Path
+          & $iscc 'packaging\windows\MarkItDown.iss' "/DAppVersion=$version" "/DSourceDir=$sourceDir" "/DOutputDir=$outputDir"
+
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"
+          VERSION="${VERSION#.}"
+          APPDIR="MarkItDown.AppDir"
+          APPIMAGE_TOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+
+          rm -rf "$APPDIR"
+          mkdir -p "$APPDIR/usr/lib/markitdown"
+          cp -a dist/MarkItDown/. "$APPDIR/usr/lib/markitdown/"
+          cp markitdowngui/resources/markitdown-gui.png "$APPDIR/markitdown-gui.png"
+
+          cat > "$APPDIR/AppRun" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/lib/markitdown/MarkItDown" "$@"
+          EOF
+          chmod +x "$APPDIR/AppRun"
+
+          cat > "$APPDIR/MarkItDown.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=MarkItDown
+          Exec=AppRun
+          Icon=markitdown-gui
+          Categories=Office;Utility;
+          Terminal=false
+          EOF
+
+          curl -L "$APPIMAGE_TOOL_URL" -o appimagetool.AppImage
+          chmod +x appimagetool.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool.AppImage "$APPDIR" "dist_output/MarkItDown-Linux-${VERSION}.AppImage"
+          chmod +x "dist_output/MarkItDown-Linux-${VERSION}.AppImage"
         shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: MarkItDown-${{ runner.os }}
-          path: dist_output/*.zip
+          path: dist_output/*
 
   release:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,8 +171,54 @@ jobs:
         with:
           path: artifacts
 
+      - name: Generate release manifest
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          assets = []
+          for path in sorted(
+              candidate
+              for pattern in ("**/*.zip", "**/*.dmg", "**/*.exe", "**/*.AppImage")
+              for candidate in Path("artifacts").glob(pattern)
+          ):
+              name = path.name
+              platform = ""
+              if "-Windows-" in name:
+                  platform = "Windows"
+              elif "-macOS-" in name:
+                  platform = "macOS"
+              elif "-Linux-" in name:
+                  platform = "Linux"
+              assets.append(
+                  {
+                      "name": name,
+                      "platform": platform,
+                      "size": path.stat().st_size,
+                      "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                  }
+              )
+
+          manifest = {
+              "schema": 1,
+              "tag": "${{ github.ref_name }}",
+              "assets": assets,
+          }
+          output = Path("artifacts/markitdown-release-manifest.json")
+          output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          print(output.read_text(encoding="utf-8"))
+          PY
+        shell: bash
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*.zip
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.dmg
+            artifacts/**/*.exe
+            artifacts/**/*.AppImage
+            artifacts/markitdown-release-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
