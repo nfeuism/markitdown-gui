@@ -52,7 +52,7 @@ Item {
                 Layout.fillWidth: true
 
                 Label {
-                    text: "MarkItDown"
+                    text: app.t("sidebar_brand")
                     color: root.textColor
                     font.pixelSize: 14
                     font.weight: Font.DemiBold
@@ -61,7 +61,7 @@ Item {
                 }
 
                 Label {
-                    text: "Document studio"
+                    text: app.t("sidebar_subtitle")
                     color: root.mutedTextColor
                     font.pixelSize: 11
                     elide: Text.ElideRight
@@ -78,7 +78,7 @@ Item {
             onClicked: root.pageRequested(0)
             ToolTip.visible: hovered
             ToolTip.delay: 550
-            ToolTip.text: "Convert documents and webpages"
+            ToolTip.text: app.t("sidebar_tooltip_workspace")
 
             contentItem: RowLayout {
                 spacing: 10
@@ -103,7 +103,7 @@ Item {
                     Layout.fillWidth: true
 
                     Label {
-                        text: "Workspace"
+                        text: app.t("sidebar_workspace")
                         color: root.textColor
                         font.pixelSize: 13
                         font.weight: root.currentIndex === 0 ? Font.DemiBold : Font.Medium
@@ -112,7 +112,7 @@ Item {
                     }
 
                     Label {
-                        text: "Convert to Markdown"
+                        text: app.t("sidebar_workspace_desc")
                         color: root.mutedTextColor
                         font.pixelSize: 11
                         elide: Text.ElideRight
@@ -150,7 +150,7 @@ Item {
         }
 
         Label {
-            text: "Add files, paste a URL, review Markdown, then export."
+            text: app.t("sidebar_tagline")
             color: root.mutedTextColor
             font.pixelSize: 12
             lineHeight: 1.15
@@ -174,7 +174,7 @@ Item {
                 onClicked: root.pageRequested(2)
                 ToolTip.visible: hovered
                 ToolTip.delay: 550
-                ToolTip.text: "Help"
+                ToolTip.text: app.t("sidebar_tooltip_help")
 
                 contentItem: RowLayout {
                     spacing: 10
@@ -195,7 +195,7 @@ Item {
                     }
 
                     Label {
-                        text: "Help"
+                        text: app.t("sidebar_help")
                         color: root.textColor
                         font.pixelSize: 13
                         font.weight: root.currentIndex === 2 ? Font.DemiBold : Font.Medium
@@ -234,7 +234,7 @@ Item {
                 onClicked: root.pageRequested(1)
                 ToolTip.visible: hovered
                 ToolTip.delay: 550
-                ToolTip.text: "Settings"
+                ToolTip.text: app.t("sidebar_tooltip_settings")
 
                 contentItem: RowLayout {
                     spacing: 10
@@ -255,7 +255,7 @@ Item {
                     }
 
                     Label {
-                        text: "Settings"
+                        text: app.t("sidebar_settings")
                         color: root.textColor
                         font.pixelSize: 13
                         font.weight: root.currentIndex === 1 ? Font.DemiBold : Font.Medium

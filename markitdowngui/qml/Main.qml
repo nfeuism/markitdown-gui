@@ -12,7 +12,7 @@ ApplicationWindow {
     minimumWidth: 980
     minimumHeight: 620
     visible: true
-    title: "MarkItDown GUI"
+    title: app.t("window_title")
     color: colors.window
     font.family: Qt.platform.os === "windows" ? "Segoe UI" : Qt.platform.os === "osx" ? ".AppleSystemUIFont" : "Noto Sans"
     onClosing: close => close.accepted = app.shutdown()
@@ -109,7 +109,7 @@ ApplicationWindow {
     function ocrFallbackLabels() {
         if (app.ocrProvider === "http")
             return ["None", "Azure + Tesseract"]
-        return ["None", "Azure + Tesseract", "HTTP OCR"]
+        return ["None", "Azure + Tesseract", app.t("title_http_ocr")]
     }
 
     function ocrFallbackDetail() {
@@ -141,7 +141,7 @@ ApplicationWindow {
 
     FileDialog {
         id: openFileDialog
-        title: "Add files"
+        title: app.t("btn_add_files")
         fileMode: FileDialog.OpenFiles
         currentFolder: app.outputFolderUrl
         nameFilters: [
@@ -153,7 +153,7 @@ ApplicationWindow {
 
     FileDialog {
         id: saveCombinedDialog
-        title: "Save combined Markdown"
+        title: app.t("title_save_combined")
         fileMode: FileDialog.SaveFile
         defaultSuffix: "md"
         currentFolder: app.outputFolderUrl
@@ -164,21 +164,21 @@ ApplicationWindow {
 
     FolderDialog {
         id: saveSeparateDialog
-        title: "Save separate Markdown files"
+        title: app.t("title_save_separate")
         currentFolder: app.suggestedSeparateOutputFolderUrl
         onAccepted: app.saveSeparateOutputs(selectedFolder)
     }
 
     FolderDialog {
         id: outputFolderDialog
-        title: "Choose output folder"
+        title: app.t("title_choose_output")
         currentFolder: app.outputFolderUrl
         onAccepted: app.setOutputFolderFromUrl(selectedFolder)
     }
 
     FileDialog {
         id: exportSettingsProfileDialog
-        title: "Export settings profile"
+        title: app.t("title_export_profile")
         fileMode: FileDialog.SaveFile
         defaultSuffix: "json"
         currentFolder: app.outputFolderUrl
@@ -189,7 +189,7 @@ ApplicationWindow {
 
     FileDialog {
         id: importSettingsProfileDialog
-        title: "Import settings profile"
+        title: app.t("title_import_profile")
         fileMode: FileDialog.OpenFile
         currentFolder: app.outputFolderUrl
         nameFilters: ["JSON files (*.json)", "All files (*)"]
@@ -280,7 +280,7 @@ ApplicationWindow {
                     ? "Installing"
                     : app.canInstallPreferredUpdate
                     ? "Install"
-                    : app.preferredReleaseAsset.url ? app.preferredReleaseAsset.installLabel || "Download" : "Releases"
+                    : app.preferredReleaseAsset.url ? app.preferredReleaseAsset.installLabel || "Download" : app.t("label_releases")
                 primary: true
                 iconName: app.updateInstallRunning || app.canInstallPreferredUpdate ? "rotate-ccw" : "external-link"
                 accentColor: colors.action
@@ -301,12 +301,12 @@ ApplicationWindow {
                 textColor: colors.muted
                 ToolTip.visible: hovered
                 ToolTip.delay: 550
-                ToolTip.text: "Dismiss"
+                ToolTip.text: app.t("btn_dismiss")
                 onClicked: app.dismissUpdateNotification()
             }
 
             AppButton {
-                text: "Don't notify"
+                text: app.t("btn_dont_notify")
                 subtle: true
                 accentColor: colors.action
                 textColor: colors.muted
@@ -525,8 +525,8 @@ ApplicationWindow {
 
             HeaderTitle {
                 title: root.pageIndex === 0
-                    ? (app.hasResults ? "Review Markdown" : "Convert to Markdown")
-                    : root.pageIndex === 1 ? "Settings" : "Help"
+                    ? (app.hasResults ? "Review Markdown" : app.t("sidebar_workspace_desc"))
+                    : root.pageIndex === 1 ? app.t("sidebar_settings") : app.t("sidebar_help")
                 detail: root.pageIndex === 0
                     ? (app.hasResults
                         ? "Inspect converted output, then copy or save Markdown."
@@ -550,7 +550,7 @@ ApplicationWindow {
         spacing: 8
 
         MetricPill {
-            label: "FILES"
+            label: app.t("section_files")
             value: app.queueCount.toString()
             backgroundColor: "transparent"
             borderColor: colors.border
@@ -560,7 +560,7 @@ ApplicationWindow {
         }
 
         MetricPill {
-            label: "DONE"
+            label: app.t("section_done")
             value: app.progress + "%"
             backgroundColor: "transparent"
             borderColor: colors.border
@@ -570,7 +570,7 @@ ApplicationWindow {
         }
 
         MetricPill {
-            label: "SAVE"
+            label: app.t("section_save")
             value: app.saveCombined ? "Combined" : "Separate"
             backgroundColor: "transparent"
             borderColor: colors.border
@@ -788,7 +788,7 @@ ApplicationWindow {
                 }
 
                 AppButton {
-                    text: "Add webpage"
+                    text: app.t("btn_add_webpage")
                     enabled: !app.converting
                     iconName: "link"
                     accentColor: colors.action
@@ -845,7 +845,7 @@ ApplicationWindow {
                     }
 
                     Label {
-                        text: "Start with files or a webpage"
+                        text: app.t("empty_start_message")
                         color: colors.text
                         font.pixelSize: 18
                         font.weight: Font.DemiBold
@@ -864,7 +864,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Choose files"
+                        text: app.t("btn_choose_files")
                         primary: true
                         iconName: "folder-plus"
                         accentColor: colors.action
@@ -891,7 +891,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
 
                 SectionPanel {
-                    title: "Documents"
+                    title: app.t("header_home_title")
                     subtitle: "Files and webpages are converted in order."
                     surfaceColor: colors.surface
                     borderColor: colors.border
@@ -905,7 +905,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
 
                         AppButton {
-                            text: "Add files"
+                            text: app.t("btn_add_files")
                             enabled: !app.converting
                             iconName: "folder-plus"
                             accentColor: colors.action
@@ -917,7 +917,7 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: "Clear"
+                            text: app.t("btn_clear")
                             enabled: !app.converting
                             subtle: true
                             iconName: "x"
@@ -998,7 +998,7 @@ ApplicationWindow {
                                 }
 
                                 AppButton {
-                                    text: "Remove"
+                                    text: app.t("btn_remove")
                                     enabled: !app.converting
                                     subtle: true
                                     iconName: "trash-2"
@@ -1012,7 +1012,7 @@ ApplicationWindow {
                 }
 
                 SectionPanel {
-                    title: "Markdown review"
+                    title: app.t("title_markdown_review")
                     subtitle: root.height < 700 ? "" : "Converted output opens here before export."
                     surfaceColor: colors.surface
                     borderColor: colors.border
@@ -1046,7 +1046,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
 
                                 Label {
-                                    text: "Preview after conversion"
+                                    text: app.t("preview_after_conversion")
                                     color: colors.text
                                     font.pixelSize: 12
                                     font.weight: Font.Medium
@@ -1069,7 +1069,7 @@ ApplicationWindow {
             }
 
             InspectorRail {
-                title: app.converting ? "Converting" : "Convert"
+                title: app.converting ? app.t("title_converting") : app.t("header_home_queue")
                 subtitle: app.queueCount + " item" + (app.queueCount === 1 ? "" : "s") + " queued"
                 surfaceColor: colors.window
                 borderColor: colors.border
@@ -1145,7 +1145,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
 
                             Label {
-                                text: "Output"
+                                text: app.t("section_output")
                                 color: colors.text
                                 font.pixelSize: 13
                                 font.weight: Font.Medium
@@ -1182,7 +1182,7 @@ ApplicationWindow {
                             }
 
                             AppButton {
-                                text: "Set folder"
+                                text: app.t("btn_set_folder")
                                 subtle: true
                                 iconName: "folder-plus"
                                 accentColor: colors.action
@@ -1241,7 +1241,7 @@ ApplicationWindow {
                     spacing: 8
 
                     AppButton {
-                        text: app.paused ? "Resume" : "Pause"
+                        text: app.paused ? app.t("btn_resume") : app.t("btn_pause")
                         enabled: app.converting
                         iconName: app.paused ? "play" : "pause"
                         accentColor: colors.action
@@ -1252,7 +1252,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Cancel"
+                        text: app.t("btn_cancel")
                         enabled: app.converting
                         iconName: "x"
                         accentColor: colors.action
@@ -1266,7 +1266,7 @@ ApplicationWindow {
                 AppButton {
                     visible: !app.converting
                     text: app.converting
-                        ? "Converting"
+                        ? app.t("title_converting")
                         : "Convert " + app.queueCount + " item" + (app.queueCount === 1 ? "" : "s")
                     enabled: !app.converting
                     primary: true
@@ -1289,7 +1289,7 @@ ApplicationWindow {
             Layout.fillHeight: true
 
             SectionPanel {
-                title: "Converted files"
+                title: app.t("title_converted_files")
                 subtitle: "Select an item to inspect the generated Markdown."
                 surfaceColor: colors.surface
                 borderColor: colors.border
@@ -1303,7 +1303,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
 
                     AppButton {
-                        text: "Back to queue"
+                        text: app.t("btn_back_to_queue")
                         subtle: true
                         iconName: "rotate-ccw"
                         accentColor: colors.action
@@ -1312,7 +1312,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Start new"
+                        text: app.t("btn_start_new")
                         subtle: true
                         iconName: "file-text"
                         accentColor: colors.action
@@ -1325,7 +1325,7 @@ ApplicationWindow {
 
                     AppButton {
                         visible: app.hasFailedResults
-                        text: "Retry"
+                        text: app.t("btn_retry")
                         subtle: true
                         iconName: "rotate-ccw"
                         accentColor: colors.danger
@@ -1516,7 +1516,7 @@ ApplicationWindow {
 
                         AppButton {
                             visible: !previewToolbar.compactActions
-                            text: app.selectedResultFailed ? "Copy details" : "Copy"
+                            text: app.selectedResultFailed ? app.t("btn_copy_details") : app.t("btn_copy")
                             iconName: "copy"
                             accentColor: app.selectedResultFailed ? colors.danger : colors.action
                             primaryTextColor: colors.onAction
@@ -1550,7 +1550,7 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: app.selectedResultFailed ? "Copy details" : "Copy"
+                            text: app.selectedResultFailed ? app.t("btn_copy_details") : app.t("btn_copy")
                             iconName: "copy"
                             accentColor: app.selectedResultFailed ? colors.danger : colors.action
                             primaryTextColor: colors.onAction
@@ -1561,7 +1561,7 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: "Save"
+                            text: app.t("btn_save")
                             enabled: app.hasSuccessfulResults && !app.selectedResultFailed
                             primary: !app.selectedResultFailed
                             iconName: "save"
@@ -1720,7 +1720,7 @@ ApplicationWindow {
                                         }
 
                                         AppButton {
-                                            text: "Retry failed"
+                                            text: app.t("btn_retry_failed")
                                             iconName: "rotate-ccw"
                                             accentColor: colors.danger
                                             surfaceColor: colors.surfaceAlt
@@ -1865,7 +1865,7 @@ ApplicationWindow {
             spacing: 16
 
             SectionPanel {
-                title: "Output"
+                title: app.t("section_output")
                 subtitle: "Set where Markdown is saved and how batches are written."
                 surfaceColor: colors.surface
                 borderColor: colors.border
@@ -1878,7 +1878,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
 
                 SettingsField {
-                    label: "Default folder"
+                    label: app.t("label_default_folder")
                     detail: "Leave empty to choose a location when saving."
                     Layout.fillWidth: true
 
@@ -1899,7 +1899,7 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: "Browse"
+                            text: app.t("btn_browse")
                             accentColor: colors.action
                             surfaceColor: colors.surfaceAlt
                             borderColor: colors.border
@@ -1910,7 +1910,7 @@ ApplicationWindow {
                 }
 
                 ThemeToggleRow {
-                    title: "Combined save mode"
+                    title: app.t("title_combined_save")
                     detail: "Save one Markdown document by default instead of one file per input."
                     checked: app.saveCombined
                     textColor: colors.text
@@ -1920,7 +1920,7 @@ ApplicationWindow {
                 }
 
                 ThemeToggleRow {
-                    title: "Prefer source folder"
+                    title: app.t("title_prefer_source")
                     detail: "Use each input file folder when separate exports are saved."
                     checked: app.saveToSourceFolder
                     textColor: colors.text
@@ -1930,7 +1930,7 @@ ApplicationWindow {
                 }
 
                 SettingsField {
-                    label: "Batch size"
+                    label: app.t("label_batch_size")
                     detail: "Limit how many sources convert in one worker batch."
                     Layout.fillWidth: true
 
@@ -1944,7 +1944,7 @@ ApplicationWindow {
             }
 
             SectionPanel {
-                title: "Appearance"
+                title: app.t("section_appearance")
                 subtitle: "Solarized Light for daytime work, Nord Dark for low-light sessions."
                 surfaceColor: colors.surface
                 borderColor: colors.border
@@ -1957,7 +1957,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
 
                 SettingsField {
-                    label: "Theme"
+                    label: app.t("label_theme")
                     detail: "Use explicit palettes or follow the operating system."
                     Layout.fillWidth: true
 
@@ -1965,6 +1965,28 @@ ApplicationWindow {
                         model: ["Solarized Light", "Nord Dark", "System"]
                         currentIndex: app.themeMode === "dark" ? 1 : app.themeMode === "system" ? 2 : 0
                         onActivated: index => app.setThemeMode(index === 1 ? "dark" : index === 2 ? "system" : "light")
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 380
+                        Layout.alignment: Qt.AlignLeft
+                    }
+                }
+
+                SettingsField {
+                    label: app.t("label_language")
+                    detail: app.t("language_restart_required")
+                    Layout.fillWidth: true
+
+                    ThemeComboBox {
+                        id: languageCombo
+                        textRole: "name"
+                        model: app.availableLanguages
+                        currentIndex: {
+                            for (var i = 0; i < model.length; i++) {
+                                if (model[i].code === app.currentLanguage) return i
+                            }
+                            return 0
+                        }
+                        onActivated: index => app.setCurrentLanguage(model[index].code)
                         Layout.fillWidth: true
                         Layout.maximumWidth: 380
                         Layout.alignment: Qt.AlignLeft
@@ -1996,7 +2018,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "OCR presets"
+                    label: app.t("label_ocr_presets")
                     detail: "Apply common provider defaults, then run Test connection."
                     Layout.fillWidth: true
 
@@ -2034,7 +2056,7 @@ ApplicationWindow {
                                 }
 
                                 AppButton {
-                                    text: "Apply"
+                                    text: app.t("btn_apply")
                                     iconName: "file-check"
                                     accentColor: colors.action
                                     surfaceColor: colors.surfaceAlt
@@ -2048,13 +2070,13 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "Primary provider"
+                    label: app.t("label_primary_provider")
                     detail: "Choose the OCR engine used first. A fallback can be configured for model failures."
                     visible: app.ocrEnabled
                     Layout.fillWidth: true
 
                     ThemeComboBox {
-                        model: ["Azure + Tesseract", "GLM-OCR", "HTTP OCR"]
+                        model: ["Azure + Tesseract", "GLM-OCR", app.t("title_http_ocr")]
                         currentIndex: root.ocrProviderIndex(app.ocrProvider)
                         onActivated: index => app.setOcrProvider(root.ocrProviderFromIndex(index))
                         Layout.fillWidth: true
@@ -2062,7 +2084,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "Fallback provider"
+                    label: app.t("label_fallback_provider")
                     detail: root.ocrFallbackDetail()
                     visible: app.ocrEnabled && app.ocrProvider !== "azure_tesseract"
                     Layout.fillWidth: true
@@ -2076,7 +2098,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "Provider capabilities"
+                    label: app.t("label_provider_capabilities")
                     visible: app.ocrEnabled
                     Layout.fillWidth: true
 
@@ -2114,7 +2136,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "Setup actions"
+                    label: app.t("label_setup_actions")
                     detail: "Open provider docs or copy setup snippets for the selected provider."
                     visible: app.ocrEnabled
                     Layout.fillWidth: true
@@ -2153,7 +2175,7 @@ ApplicationWindow {
                                 }
 
                                 AppButton {
-                                    text: modelData.action === "open" ? "Open" : "Copy"
+                                    text: modelData.action === "open" ? app.t("btn_open") : app.t("btn_copy")
                                     iconName: modelData.action === "open" ? "external-link" : "copy"
                                     accentColor: colors.action
                                     surfaceColor: colors.surfaceAlt
@@ -2235,7 +2257,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
 
                     Label {
-                        text: "Check required provider settings before starting a batch."
+                        text: app.t("ocr_check_required")
                         color: colors.muted
                         font.pixelSize: 12
                         wrapMode: Text.WordWrap
@@ -2243,7 +2265,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Validate OCR"
+                        text: app.t("btn_validate_ocr")
                         iconName: "file-check"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2253,7 +2275,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Test connection"
+                        text: app.t("btn_test_connection")
                         iconName: "server"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2279,7 +2301,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
 
                 FieldGroup {
-                    label: "Mode"
+                    label: app.t("label_mode")
                     detail: app.glmocrMode === "ollama"
                         ? "Uses a local Ollama /api/generate endpoint."
                         : app.glmocrMode === "sdk_server"
@@ -2296,7 +2318,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "Ollama host"
+                    label: app.t("label_ollama_host")
                     visible: app.glmocrMode === "ollama"
                     Layout.fillWidth: true
 
@@ -2319,7 +2341,7 @@ ApplicationWindow {
                     spacing: 10
 
                     FieldGroup {
-                        label: "Port"
+                        label: app.t("label_port")
                         Layout.preferredWidth: 150
                         Layout.fillWidth: false
 
@@ -2333,7 +2355,7 @@ ApplicationWindow {
                     }
 
                     FieldGroup {
-                        label: "Model"
+                        label: app.t("label_model")
                         Layout.fillWidth: true
 
                         AppTextField {
@@ -2351,7 +2373,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "SDK server endpoint"
+                    label: app.t("label_sdk_server_endpoint")
                     visible: app.glmocrMode === "sdk_server"
                     Layout.fillWidth: true
 
@@ -2370,7 +2392,7 @@ ApplicationWindow {
             }
 
             SectionPanel {
-                title: "HTTP OCR"
+                title: app.t("title_http_ocr")
                 subtitle: "Connect any local or self-hosted OCR server that accepts a multipart file upload."
                 surfaceColor: colors.surface
                 borderColor: colors.border
@@ -2384,7 +2406,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
 
                 FieldGroup {
-                    label: "Endpoint"
+                    label: app.t("label_endpoint")
                     detail: "POST endpoint. The app sends a `file` part plus optional `model`."
                     Layout.fillWidth: true
 
@@ -2406,7 +2428,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
 
                     FieldGroup {
-                        label: "Model"
+                        label: app.t("label_model")
                         detail: "Optional model field."
                         Layout.fillWidth: true
 
@@ -2424,7 +2446,7 @@ ApplicationWindow {
                     }
 
                     FieldGroup {
-                        label: "Timeout"
+                        label: app.t("label_timeout")
                         detail: "Seconds."
                         Layout.preferredWidth: 150
                         Layout.fillWidth: false
@@ -2440,7 +2462,7 @@ ApplicationWindow {
                 }
 
                 FieldGroup {
-                    label: "API key environment variable"
+                    label: app.t("label_api_key_env")
                     detail: "Optional. If set, the value is sent as `Authorization: Bearer ...`."
                     Layout.fillWidth: true
 
@@ -2459,7 +2481,7 @@ ApplicationWindow {
             }
 
             SectionPanel {
-                title: "Settings profile"
+                title: app.t("label_settings_profile")
                 subtitle: "Move OCR, update, and conversion preferences without recent file paths."
                 surfaceColor: colors.surface
                 borderColor: colors.border
@@ -2484,7 +2506,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Export"
+                        text: app.t("btn_export")
                         iconName: "save"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2494,7 +2516,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Import"
+                        text: app.t("btn_import")
                         iconName: "upload"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2524,14 +2546,14 @@ ApplicationWindow {
             spacing: 16
 
             UtilitySectionPanel {
-                title: "Common tasks"
+                title: app.t("label_common_tasks")
                 subtitle: "Quick guidance for the conversion workflow."
 
                 Repeater {
                     model: [
-                        { icon: "folder-plus", title: "Add documents", detail: "Drop files into the window or choose files from your system." },
-                        { icon: "link", title: "Convert a webpage", detail: "Paste an http:// or https:// URL in the bar at the top of the workspace." },
-                        { icon: "file-text", title: "Use OCR only when needed", detail: "Enable OCR for scanned PDFs, screenshots, and image-heavy files." },
+                        { icon: "folder-plus", title: app.t("label_add_documents"), detail: "Drop files into the window or choose files from your system." },
+                        { icon: "link", title: app.t("label_convert_webpage"), detail: "Paste an http:// or https:// URL in the bar at the top of the workspace." },
+                        { icon: "file-text", title: app.t("label_ocr_when_needed"), detail: "Enable OCR for scanned PDFs, screenshots, and image-heavy files." },
                         { icon: "save", title: "Save Markdown", detail: "Use combined mode for one document, or separate mode for one Markdown file per input." }
                     ]
 
@@ -2597,7 +2619,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Check for updates"
+                        text: app.t("btn_check_updates")
                         iconName: "external-link"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2703,7 +2725,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Restart app"
+                        text: app.t("btn_restart_app")
                         iconName: "rotate-ccw"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2718,7 +2740,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Copy command"
+                        text: app.t("btn_copy_command")
                         iconName: "copy"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2746,10 +2768,10 @@ ApplicationWindow {
 
                     Repeater {
                         model: [
-                            { label: "Repository", url: "https://github.com/imadreamerboy/markitdown-gui" },
-                            { label: "Releases", url: "https://github.com/imadreamerboy/markitdown-gui/releases" },
+                            { label: app.t("label_repository"), url: "https://github.com/imadreamerboy/markitdown-gui" },
+                            { label: app.t("label_releases"), url: "https://github.com/imadreamerboy/markitdown-gui/releases" },
                             { label: "GLM-OCR", url: "https://github.com/zai-org/GLM-OCR" },
-                            { label: "Tesseract", url: "https://github.com/tesseract-ocr/tesseract" },
+                            { label: app.t("label_tesseract_install"), url: "https://github.com/tesseract-ocr/tesseract" },
                             { label: "Defuddle", url: "https://defuddle.md/docs" },
                             { label: "Azure OCR Pricing", url: "https://azure.microsoft.com/en-us/products/ai-foundry/tools/document-intelligence#Pricing" }
                         ]
@@ -2831,7 +2853,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Open logs"
+                        text: app.t("btn_open_logs")
                         iconName: "external-link"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2841,7 +2863,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Copy diagnostics"
+                        text: app.t("btn_copy_diagnostics")
                         iconName: "copy"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2851,7 +2873,7 @@ ApplicationWindow {
                     }
 
                     AppButton {
-                        text: "Export bundle"
+                        text: app.t("btn_export_bundle")
                         iconName: "save"
                         accentColor: colors.action
                         surfaceColor: colors.surfaceAlt
@@ -2879,7 +2901,7 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: "Open backup folder"
+                            text: app.t("btn_open_backup")
                             iconName: "external-link"
                             accentColor: colors.action
                             surfaceColor: colors.surfaceAlt
@@ -2890,7 +2912,7 @@ ApplicationWindow {
                         }
 
                         AppButton {
-                            text: "Clear"
+                            text: app.t("btn_clear")
                             iconName: "x"
                             accentColor: colors.action
                             surfaceColor: colors.surfaceAlt
@@ -2922,7 +2944,7 @@ ApplicationWindow {
 
                     Repeater {
                         model: [
-                            { key: "Ctrl+O", action: "Add files" },
+                            { key: "Ctrl+O", action: app.t("btn_add_files") },
                             { key: "Ctrl+B", action: "Convert queue" },
                             { key: "Ctrl+P", action: "Pause or resume" },
                             { key: "Ctrl+S", action: "Save Markdown" },

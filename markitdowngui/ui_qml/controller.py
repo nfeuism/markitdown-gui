@@ -71,7 +71,7 @@ from markitdowngui.utils.support_bundle import (
     create_support_bundle,
     redact_diagnostic_text,
 )
-from markitdowngui.utils.translations import DEFAULT_LANG, get_translation
+from markitdowngui.utils.translations import DEFAULT_LANG, get_available_languages, get_translation
 from markitdowngui.utils.update_checker import (
     ReleaseAsset,
     UpdateChecker,
@@ -161,6 +161,7 @@ class AppController(QObject):
     sourceUpdateChanged = Signal()
     diagnosticsChanged = Signal()
     toastRequested = Signal(str, str)
+    languageChanged = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -2004,4 +2005,24 @@ class AppController(QObject):
     def translate(self, key: str) -> str:
         lang = self.settings.get_current_language() or DEFAULT_LANG
         return get_translation(lang, key)
+
+    @Slot(str, result=str)
+    def t(self, key: str) -> str:
+        return self.translate(key)
+
+    @Property(str, notify=languageChanged)
+    def currentLanguage(self) -> str:
+        return self.settings.get_current_language() or DEFAULT_LANG
+
+    @Property("QVariant", constant=True)
+    def availableLanguages(self) -> list[dict[str, str]]:
+        langs = get_available_languages()
+        return [{"code": code, "name": name} for code, name in langs.items()]
+
+    @Slot(str)
+    def setCurrentLanguage(self, code: str) -> None:
+        if code not in get_available_languages():
+            return
+        self.settings.set_current_language(code)
+        self.languageChanged.emit()
 
