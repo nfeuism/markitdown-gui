@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv*
 MarkItDown-Windows.zip
+dist/
+MarkItDown-Windows.zip
+MarkItDown/
