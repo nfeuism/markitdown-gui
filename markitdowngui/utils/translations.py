@@ -359,7 +359,7 @@ TRANSLATIONS = {
         "home_queue_ocr_label": "OCR",
         "home_queue_ocr_tooltip": "在转换时运行 OCR，并使用设置页中配置的 OCR 提供方。",
         "about_menu": "关于",
-        "settings_language_restart_note": "語言變更將在重新啟動應用程式後生效。",
+        "settings_language_restart_note": "语言变更将在重新启动应用程序后生效。",
         "menu_view": "视图(&V)",
         "menu_dark_mode": "深色模式(&D)",
         "menu_settings": "设置(&S)",
@@ -527,7 +527,7 @@ TRANSLATIONS = {
         "conversion_start_error_message": "启动转换时出错: {error}",
         "unexpected_error_title": "意外错误",
         "unexpected_error_message": "发生意外错误: {error}",
-        "conversion_starting_message": "正在啟動轉換..."
+        "conversion_starting_message": "正在启动转换..."
     },
     "zh_TW": {
         "app_title": "MarkItDown GUI 轉換工具",
