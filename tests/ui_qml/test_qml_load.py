@@ -65,7 +65,7 @@ def test_ocr_fallback_selector_is_provider_independent():
     qml_root = Path(__file__).resolve().parents[2] / "markitdowngui" / "qml"
     main_text = (qml_root / "Main.qml").read_text(encoding="utf-8")
 
-    fallback_marker = 'label: "Fallback provider"'
+    fallback_marker = 'app.t("label_fallback_provider")'
     glm_panel_marker = 'title: "GLM-OCR"'
 
     assert main_text.count(fallback_marker) == 1
