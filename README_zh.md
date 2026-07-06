@@ -1,6 +1,8 @@
 [English](README.md) | **简体中文** | [繁體中文](README_zh_TW.md)
 
-# MarkItDown GUI 封装
+# MarkItDown GUI 封装 — 简体中文增强版
+
+> 基于 [imadreamerboy/markitdown-gui](https://github.com/imadreamerboy/markitdown-gui) 的 fork，增加了完整的简体中文 UI 支持。
 
 这是一个基于 `PySide6` 和官方 Qt Quick Controls/QML 的 `MarkItDown` 桌面 GUI。
 它面向快速、多文件转换到 Markdown，并提供接近原生桌面的界面体验。
@@ -25,10 +27,21 @@
 - 可选 OCR，支持扫描版 PDF 和图片文件，可选择 `Azure + Tesseract`、`GLM-OCR` 和通用 `HTTP OCR` 提供方。
 - 设置项包括输出目录、保存模式、保存到源文件夹、批处理大小、OCR、更新、语言和主题模式（浅色/深色/跟随系统）。
 - 帮助页包含项目链接、OCR 参考、转换参考、诊断信息和键盘快捷键。
+- **🌐 多语言支持**：English、简体中文、繁體中文 — 在 设置 → 外观 → 语言 中切换（需重启）。
+
+### 🌐 切换语言
+
+1. 从侧边栏打开 **设置**
+2. 在 **外观** 下找到 **语言** 下拉菜单
+3. 选择 **English**、**简体中文** 或 **繁體中文**
+4. **重启应用程序** 使更改生效
+
+语言偏好会在会话间保存。所有 UI 元素 — 侧边栏、按钮、标签、提示和设置 — 均已完整翻译。
+
 
 ## 安装
 
-你可以从 [Releases](https://github.com/imadreamerboy/markitdown-gui/releases) 下载预编译版本，或从源码运行。
+你可以从 [Releases](https://github.com/nfeuism/markitdown-gui/releases) 下载预编译版本，或从源码运行。
 
 ### Release 制品
 

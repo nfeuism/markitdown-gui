@@ -1,7 +1,9 @@
 [English](README.md) | [简体中文](README_zh.md) | [繁體中文](README_zh_TW.md)
 
 
-# MarkItDown GUI Wrapper
+# MarkItDown GUI Wrapper — 简体中文增强版
+
+> Forked from [imadreamerboy/markitdown-gui](https://github.com/imadreamerboy/markitdown-gui), with full Simplified Chinese UI support.
 
 A desktop GUI for `MarkItDown`, built with `PySide6` and official Qt Quick Controls/QML.
 It focuses on fast multi-file conversion to Markdown with a modern, native-styled desktop interface.
@@ -26,10 +28,21 @@ More screenshots:
 - Optional OCR for scanned PDFs and image files, with selectable `Azure + Tesseract`, `GLM-OCR`, and generic `HTTP OCR` providers.
 - Settings for output folder, save mode, source-folder saves, batch size, OCR, and theme mode (light/dark/system).
 - Help view with project links, OCR references, conversion references, and keyboard shortcuts.
+- **🌐 Multi-language support**: English, 简体中文, 繁體中文 — switch from Settings → Appearance → Language (restart required).
+
+### 🌐 Switching Languages
+
+1. Open **Settings** from the sidebar
+2. Under **Appearance**, find the **Language** dropdown
+3. Select **English**, **简体中文**, or **繁體中文**
+4. **Restart the application** for the change to take effect
+
+The language preference is saved between sessions. All UI elements — sidebar, buttons, labels, tooltips, and settings — are fully translated.
+
 
 ## Installation
 
-Download prebuilt binaries from [Releases](https://github.com/imadreamerboy/markitdown-gui/releases), or run from source.
+Download prebuilt binaries from [Releases](https://github.com/nfeuism/markitdown-gui/releases), or run from source.
 
 ### Release assets
 
