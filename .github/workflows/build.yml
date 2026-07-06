@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -22,36 +25,48 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      - name: Test
+        run: uv run pytest -q
+
       - name: Build with PyInstaller
         run: uv run pyinstaller MarkItDown.spec --noconfirm
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
+      - name: Set asset name
+        id: vars
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "name=MarkItDown-Windows" >> $GITHUB_OUTPUT
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            echo "name=MarkItDown-macOS" >> $GITHUB_OUTPUT
+          else
+            echo "name=MarkItDown-Linux" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package
         shell: bash
         run: |
           cd dist
-          7z a -tzip "../MarkItDown-Windows.zip" "MarkItDown/*"
-          echo "ASSET=MarkItDown-Windows.zip" >> $GITHUB_ENV
+          zip -r "../${{ steps.vars.outputs.name }}.zip" MarkItDown/ MarkItDown.app 2>/dev/null || zip -r "../${{ steps.vars.outputs.name }}.zip" MarkItDown/
 
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          cd dist
-          zip -r "../MarkItDown-macOS.zip" "MarkItDown.app" "MarkItDown/"
-          echo "ASSET=MarkItDown-macOS.zip" >> $GITHUB_ENV
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.name }}
+          path: ${{ steps.vars.outputs.name }}.zip
 
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          cd dist
-          zip -r "../MarkItDown-Linux.zip" "MarkItDown/"
-          echo "ASSET=MarkItDown-Linux.zip" >> $GITHUB_ENV
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
 
-      - name: Upload to Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ASSET }}
+          files: |
+            MarkItDown-Windows/MarkItDown-Windows.zip
+            MarkItDown-macOS/MarkItDown-macOS.zip
+            MarkItDown-Linux/MarkItDown-Linux.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
