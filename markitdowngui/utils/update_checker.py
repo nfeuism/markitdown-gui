@@ -10,7 +10,7 @@ from packaging.version import parse
 from markitdowngui import __version__ as app_version
 
 
-GITHUB_API_URL = "https://api.github.com/repos/imadreamerboy/markitdown-gui/releases/latest"
+GITHUB_API_URL = "https://api.github.com/repos/nfeuism/markitdown-gui/releases/latest"
 
 
 def _safe_int(value: object) -> int:

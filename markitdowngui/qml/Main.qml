@@ -1978,15 +1978,9 @@ ApplicationWindow {
 
                     ThemeComboBox {
                         id: languageCombo
-                        textRole: "name"
-                        model: app.availableLanguages
-                        currentIndex: {
-                            for (var i = 0; i < model.length; i++) {
-                                if (model[i].code === app.currentLanguage) return i
-                            }
-                            return 0
-                        }
-                        onActivated: index => app.setCurrentLanguage(model[index].code)
+                        model: ["English", "简体中文", "繁體中文"]
+                        currentIndex: app.currentLanguage === "zh_CN" ? 1 : app.currentLanguage === "zh_TW" ? 2 : 0
+                        onActivated: index => app.setCurrentLanguage(index === 1 ? "zh_CN" : index === 2 ? "zh_TW" : "en")
                         Layout.fillWidth: true
                         Layout.maximumWidth: 380
                         Layout.alignment: Qt.AlignLeft
